@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Medicinal Plants - Herbal Garden</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .plants-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .plants-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .plants-header h1 {
+            color: #2c5f2d;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .plants-header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-section label {
+            font-weight: bold;
+            color: #2c5f2d;
+        }
+        .filter-section select {
+            padding: 10px 15px;
+            border: 2px solid #97bc62;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+            min-width: 150px;
+        }
+        .plants-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+        .plant-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .plant-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .plant-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #f0f0f0;
+        }
+        .plant-card-content {
+            padding: 20px;
+        }
+        .plant-card h3 {
+            color: #2c5f2d;
+            margin: 0 0 10px 0;
+            font-size: 1.4em;
+        }
+        .plant-card .scientific-name {
+            color: #666;
+            font-style: italic;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+        .plant-card .family {
+            display: inline-block;
+            background: #97bc62;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+        .plant-card .description {
+            color: #555;
+            font-size: 0.9em;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+        .plant-card .type {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+        .plant-card .distribution {
+            color: #888;
+            font-size: 0.85em;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+        .no-plants {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .stats {
+            background: #2c5f2d;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-item .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #97bc62;
+        }
+        .stat-item .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="plants-container">
+        <div class="plants-header">
+            <h1>🌿 All Medicinal Plants</h1>
+            <p>Explore our comprehensive database of medicinal plants</p>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-item">
+                <div class="number" id="totalPlants">0</div>
+                <div class="label">Total Plants</div>
+            </div>
+            <div class="stat-item">
+                <div class="number" id="totalFamilies">0</div>
+                <div class="label">Plant Families</div>
+            </div>
+            <div class="stat-item">
+                <div class="number" id="totalGroups">0</div>
+                <div class="label">Plant Groups</div>
+            </div>
+            <div class="stat-item">
+                <div class="number" id="totalTypes">0</div>
+                <div class="label">Plant Types</div>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Filter by:</label>
+            <select id="familyFilter">
+                <option value="">All Families</option>
+            </select>
+            <select id="groupFilter">
+                <option value="">All Groups</option>
+            </select>
+            <select id="typeFilter">
+                <option value="">All Types</option>
+            </select>
+            <select id="sortBy">
+                <option value="name">Sort by Name</option>
+                <option value="family">Sort by Family</option>
+                <option value="type">Sort by Type</option>
+            </select>
+        </div>
+
+        <div class="plants-grid" id="plantsGrid">
+            <div class="loading">Loading plants...</div>
+        </div>
+    </div>
+
+    <script>
+        let allPlants = [];
+        let filters = {
+            families: [],
+            groups: [],
+            types: []
+        };
+
+        // Load all plants
+        async function loadPlants() {
+            try {
+                const response = await fetch('/api/all-plants');
+                allPlants = await response.json();
+                displayPlants(allPlants);
+                updateStats(allPlants);
+            } catch (error) {
+                console.error('Error loading plants:', error);
+                document.getElementById('plantsGrid').innerHTML = 
+                    '<div class="no-plants">Error loading plants. Please try again.</div>';
+            }
+        }
+
+        // Load filter options
+        async function loadFilters() {
+            try {
+                const response = await fetch('/api/filters');
+                filters = await response.json();
+                
+                populateSelect('familyFilter', filters.families);
+                populateSelect('groupFilter', filters.groups);
+                populateSelect('typeFilter', filters.types);
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        // Populate select dropdown
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            options.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.textContent = option;
+                select.appendChild(opt);
+            });
+        }
+
+        // Display plants
+        function displayPlants(plants) {
+            const grid = document.getElementById('plantsGrid');
+            
+            if (plants.length === 0) {
+                grid.innerHTML = '<div class="no-plants">No plants found matching your criteria.</div>';
+                return;
+            }
+
+            grid.innerHTML = plants.map(plant => `
+                <div class="plant-card" data-family="${plant.family}" data-group="${plant.plant_group}" data-type="${plant.plant_type}">
+                    <img src="${plant.image_url || '/static/images/plants/default.jpg'}" 
+                         alt="${plant.common_name}"
+                         onerror="this.src='/static/images/plants/default.jpg'">
+                    <div class="plant-card-content">
+                        <h3>${plant.common_name}</h3>
+                        <div class="scientific-name">${plant.scientific_name}</div>
+                        <span class="family">${plant.family}</span>
+                        <div class="description">${plant.description}</div>
+                        <div class="type"><strong>Type:</strong> ${plant.plant_type}</div>
+                        <div class="distribution"><strong>Origin:</strong> ${plant.distribution}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update statistics
+        function updateStats(plants) {
+            document.getElementById('totalPlants').textContent = plants.length;
+            
+            const families = new Set(plants.map(p => p.family));
+            const groups = new Set(plants.map(p => p.plant_group));
+            const types = new Set(plants.map(p => p.plant_type));
+            
+            document.getElementById('totalFamilies').textContent = families.size;
+            document.getElementById('totalGroups').textContent = groups.size;
+            document.getElementById('totalTypes').textContent = types.size;
+        }
+
+        // Filter plants
+        function filterPlants() {
+            const family = document.getElementById('familyFilter').value;
+            const group = document.getElementById('groupFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const sortBy = document.getElementById('sortBy').value;
+
+            let filtered = allPlants.filter(plant => {
+                return (!family || plant.family === family) &&
+                       (!group || plant.plant_group === group) &&
+                       (!type || plant.plant_type === type);
+            });
+
+            // Sort plants
+            filtered.sort((a, b) => {
+                switch(sortBy) {
+                    case 'family':
+                        return a.family.localeCompare(b.family);
+                    case 'type':
+                        return a.plant_type.localeCompare(b.plant_type);
+                    default:
+                        return a.common_name.localeCompare(b.common_name);
+                }
+            });
+
+            displayPlants(filtered);
+        }
+
+        // Event listeners
+        document.getElementById('familyFilter').addEventListener('change', filterPlants);
+        document.getElementById('groupFilter').addEventListener('change', filterPlants);
+        document.getElementById('typeFilter').addEventListener('change', filterPlants);
+        document.getElementById('sortBy').addEventListener('change', filterPlants);
+
+        // Initialize
+        loadFilters();
+        loadPlants();
+    </script>
+</body>
+</html>
